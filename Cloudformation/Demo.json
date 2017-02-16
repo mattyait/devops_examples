@@ -1,0 +1,407 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Description" : "Infra Cloudformation",
+  "Parameters" : {
+    "StackName" : {
+      "Description" : "StackName",
+      "Type" : "String",
+      "Default" : "Demo"
+    },
+    "AppServerPort" :{
+      "Description" : "webserver port",
+      "Type" : "Number",
+      "Default" : 80
+    },
+    "AppServerAMI" : {
+      "Description" : "AMI for app server",
+      "Type" : "String",
+      "Default" : "ami-9be6f38c"
+    },
+    "AppServerInstanceType" : {
+      "Description" : "EC2 instance type",
+      "Type" : "String",
+      "Default" : "m3.medium",
+      "AllowedValues" : [ "t2.micro", "m1.small", "m1.medium", "m3.medium", "m3.large", "m3.xlarge","c3.large", "c3.xlarge"],
+      "ConstraintDescription" : "must be a valid (and reasonable) EC2 instance type."
+    },
+    "AppServerKeyName" : {
+      "Description" : "SSH key for launched instances",
+      "Type" : "String",
+      "Default" : "app_server"
+    },
+    "DatabaseName": {
+      "Description": "DatabaseName",
+      "Type": "String",
+      "Default": "AppServerRDS"
+    },
+    "DBAllocatedStorage":{
+      "Description": "DB storage",
+      "Type": "String",
+      "Default": "10"
+    },
+    "DBInstanceClass":{
+      "Description": "DB Instance",
+      "Type": "String",
+      "Default": "db.m1.small"
+    },
+    "DatabaseUser" : {
+      "Description" : "Database admin account username",
+      "Type" : "String",
+      "Default" : "Demo",
+      "MinLength" : "1",
+      "MaxLength" : "16",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+    "DatabasePassword" : {
+      "Description" : "Database admin account password",
+      "Type" : "String",
+      "Default" : "Cr0ss0ver123",
+      "MinLength" : "1",
+      "MaxLength" : "16",
+      "AllowedPattern" : "[a-zA-Z0-9]*",
+      "ConstraintDescription" : "must contain only alphanumeric characters."
+    },
+    "DomainName" : {
+      "Description" : "The domain that will contain the A record pointing to the internal load balancers",
+      "Type" : "String",
+      "Default" : "Demo.com"
+    },
+    "HostedZoneId" : {
+      "Description" : "hosted zone ID",
+      "Type" : "String",
+      "Default" : "Z1H2EDV5CTMK53"
+    }
+
+
+
+
+  },
+
+  "Mappings" : {
+    "BastionInstance" : {
+      "us-east-1" : {"AMI" : "ami-c7e7f2d0"},
+      "us-west-1" :{"AMI" : "ami-9be6f38c"},
+      "eu-west-1" : { "AMI" : "ami-37c2f643"},
+      "ap-southeast-1" : { "AMI" : "ami-66f28c34"},
+      "ap-northeast-1" : { "AMI" : "ami-9c03a89d"}
+    }
+  },
+
+  "Resources" : {
+      "DemoVPC" : {
+        "Type" : "AWS::EC2::VPC",
+        "Properties" : {
+          "CidrBlock" : "10.0.0.0/16",
+    	    "EnableDnsSupport" : "true",
+    	    "EnableDnsHostnames" : "false",
+          "Tags" : [ {"Key" : "Name", "Value" : {"Ref" : "StackName"} } ]
+         }
+      },
+
+      "PublicSubnetA" : {
+         "Type" : "AWS::EC2::Subnet",
+         "Properties" : {
+            "VpcId" : { "Ref" : "DemoVPC" },
+            "CidrBlock" : "10.0.0.0/24",
+            "AvailabilityZone" : "us-east-1a",
+            "Tags" : [ { "Key" : "Name", "Value" : "PublicSubnet1a" } ]
+         }
+      },
+      "PublicSubnetB" : {
+         "Type" : "AWS::EC2::Subnet",
+         "Properties" : {
+            "VpcId" : { "Ref" : "DemoVPC" },
+            "CidrBlock" : "10.0.1.0/24",
+            "AvailabilityZone" : "us-east-1b",
+            "Tags" : [ { "Key" : "Name", "Value" : "PublicSubnet1b" } ]
+         }
+      },
+
+
+      "InternetGateway" : {
+           "Type" : "AWS::EC2::InternetGateway",
+           "Properties" : {
+              "Tags" : [ {"Key" : "Name", "Value" : "InternetGateway"}]
+           }
+      },
+      "AttachGateway" : {
+          "Type" : "AWS::EC2::VPCGatewayAttachment",
+           "Properties" : {
+              "VpcId" : { "Ref" : "DemoVPC" },
+              "InternetGatewayId" : { "Ref" : "InternetGateway" }
+           }
+      },
+
+      "EIPNatGatewayA" : {
+        "Type" : "AWS::EC2::EIP",
+        "Properties" : {
+          "Domain" : "DemoVPC"
+        }
+      },
+      "NatGatewayA" : {
+        "Type" : "AWS::EC2::NatGateway",
+        "Properties" : {
+          "AllocationId" : { "Fn::GetAtt" : ["EIPNatGatewayA", "AllocationId"]},
+          "SubnetId" : { "Ref" : "PublicSubnetA"}
+        }
+      },
+
+
+
+
+      "PublicRouteTable" : {
+         "Type" : "AWS::EC2::RouteTable",
+         "Properties" : {
+            "VpcId" : { "Ref" : "DemoVPC" },
+            "Tags" : [ { "Key" : "Name", "Value" : "PublicRouteTable" } ]
+         }
+      },
+      "PublicSubnetARouteTableAssociation" : {
+         "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+         "Properties" : {
+            "SubnetId" : { "Ref" : "PublicSubnetA" },
+            "RouteTableId" : { "Ref" : "PublicRouteTable" }
+         }
+      },
+      "PublicSubnetBRouteTableAssociation" : {
+         "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+         "Properties" : {
+            "SubnetId" : { "Ref" : "PublicSubnetB" },
+            "RouteTableId" : { "Ref" : "PublicRouteTable" }
+         }
+      },
+      "PublicRoute" : {
+         "Type" : "AWS::EC2::Route",
+         "Properties" : {
+            "RouteTableId" : { "Ref" : "PublicRouteTable" },
+            "DestinationCidrBlock" : "0.0.0.0/0",
+            "GatewayId" : { "Ref" : "InternetGateway" }
+         }
+      },
+
+
+
+      "PrivateSubnetA" : {
+         "Type" : "AWS::EC2::Subnet",
+         "Properties" : {
+            "VpcId" : { "Ref" : "DemoVPC" },
+            "CidrBlock" : "10.0.2.0/24",
+            "AvailabilityZone" : "us-east-1a",
+            "Tags" : [ { "Key" : "Name", "Value" : "PrivateSubnet1a" } ]
+         }
+      },
+      "PrivateSubnetB" : {
+         "Type" : "AWS::EC2::Subnet",
+         "Properties" : {
+            "VpcId" : { "Ref" : "DemoVPC" },
+            "CidrBlock" : "10.0.3.0/24",
+            "AvailabilityZone" : "us-east-1b",
+            "Tags" : [ { "Key" : "Name", "Value" : "PrivateSubnet1b" } ]
+         }
+      },
+
+
+      "PrivateRouteTable" : {
+         "Type" : "AWS::EC2::RouteTable",
+         "Properties" : {
+            "VpcId" : { "Ref" : "DemoVPC" },
+            "Tags" : [ { "Key" : "Name", "Value" : "PrivateRouteTable" } ]
+         }
+      },
+      "PrivateSubnetARouteTableAssociation" : {
+         "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+         "Properties" : {
+            "SubnetId" : { "Ref" : "PrivateSubnetA" },
+            "RouteTableId" : { "Ref" : "PrivateRouteTable" }
+         }
+      },
+      "PrivateSubnetBRouteTableAssociation" : {
+         "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+         "Properties" : {
+            "SubnetId" : { "Ref" : "PrivateSubnetB" },
+            "RouteTableId" : { "Ref" : "PrivateRouteTable" }
+         }
+      },
+      "PrivateRoute" : {
+         "Type" : "AWS::EC2::Route",
+         "Properties" : {
+            "RouteTableId" : { "Ref" : "PrivateRouteTable" },
+            "DestinationCidrBlock" : "0.0.0.0/0",
+            "NatGatewayId" : { "Ref" : "NatGatewayA" }
+         }
+      },
+
+
+
+      "AppElasticLoadBalancer": {
+        "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+        "Properties": {
+          "Subnets" : [ {"Ref" : "PublicSubnetA"}, {"Ref" : "PublicSubnetB"} ],
+          "Listeners": [{
+            "LoadBalancerPort": "80",
+            "InstancePort": "80",
+            "Protocol": "HTTP"
+          }],
+          "HealthCheck": {
+            "Target": "HTTP:80/",
+            "HealthyThreshold": "3",
+            "UnhealthyThreshold": "5",
+            "Interval": "30",
+            "Timeout": "5"
+          }
+        }
+      },
+
+      "AppElasticLoadBalancerbackup": {
+        "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+        "Properties": {
+          "Subnets" : [ {"Ref" : "PublicSubnetA"}, {"Ref" : "PublicSubnetB"} ],
+          "Listeners": [{
+            "LoadBalancerPort": "80",
+            "InstancePort": "80",
+            "Protocol": "HTTP"
+          }],
+          "HealthCheck": {
+            "Target": "HTTP:80/",
+            "HealthyThreshold": "3",
+            "UnhealthyThreshold": "5",
+            "Interval": "30",
+            "Timeout": "5"
+          }
+        }
+      },
+
+
+      "AppServerSecurityGroup" : {
+         "Type" : "AWS::EC2::SecurityGroup",
+         "Properties" : {
+            "GroupDescription" : "Allow http to client host",
+            "VpcId" : {"Ref" : "DemoVPC"},
+            "SecurityGroupIngress" : [{
+                  "IpProtocol" : "tcp",
+                  "FromPort" : "80",
+                  "ToPort" : "80",
+                  "CidrIp" : "0.0.0.0/0"
+               }],
+            "SecurityGroupIngress" : [{
+                  "IpProtocol" : "tcp",
+                  "FromPort" : "22",
+                  "ToPort" : "22",
+                  "SourceSecurityGroupId" : { "Fn::GetAtt" : [ "BastionSecurityGroup", "GroupId" ] }
+               }],
+           "SecurityGroupIngress" : [{
+                 "IpProtocol" : "tcp",
+                 "FromPort" : "443",
+                 "ToPort" : "443",
+                 "CidrIp" : "0.0.0.0/0"
+              }],
+            "SecurityGroupEgress" : [{
+               "IpProtocol" : "tcp",
+               "FromPort" : "80",
+               "ToPort" : "80",
+               "CidrIp" : "0.0.0.0/0"
+            }]
+         }
+      },
+      "AppServerLaunchConfig": {
+         "Type" : "AWS::AutoScaling::LaunchConfiguration",
+         "Properties" : {
+            "ImageId" : { "Ref" : "AppServerAMI"},
+            "InstanceMonitoring" : true,
+            "InstanceType" : {"Ref":"AppServerInstanceType"},
+            "KeyName" : {"Ref": "AppServerKeyName"},
+            "SecurityGroups" : [ {"Ref": "AppServerSecurityGroup"} ]
+         }
+      },
+
+      "AppServerAutoscalingGroup" : {
+         "Type" : "AWS::AutoScaling::AutoScalingGroup",
+         "Properties" : {
+            "AvailabilityZones" : [ {
+              "Fn::GetAtt" : [ "PrivateSubnetA", "AvailabilityZone" ]
+            }, {
+              "Fn::GetAtt" : [ "PrivateSubnetB", "AvailabilityZone" ]
+            } ],
+            "VPCZoneIdentifier" : [ {"Ref" : "PrivateSubnetA"}, {"Ref" : "PrivateSubnetB"} ],
+            "LaunchConfigurationName" : { "Ref" : "AppServerLaunchConfig" },
+            "MinSize" : "2",
+            "MaxSize" : "2",
+            "LoadBalancerNames" : [ { "Ref" : "AppElasticLoadBalancer" }, { "Ref" : "AppElasticLoadBalancerbackup" } ],
+            "Tags" : [ {"Key" : "Name","Value" : "AppServer","PropagateAtLaunch" : "true"} ],
+            "MetricsCollection": [
+               {
+                  "Granularity": "1Minute",
+                  "Metrics": [
+                    "GroupMinSize",
+                    "GroupMaxSize",
+                    "GroupDesiredCapacity",
+                    "GroupInServiceInstances",
+                    "GroupPendingInstances",
+                    "GroupStandbyInstances",
+                    "GroupTerminatingInstances",
+                    "GroupTotalInstances"
+                  ]
+               }
+            ]
+         }
+      },
+
+
+
+      "BastionSecurityGroup" : {
+         "Type" : "AWS::EC2::SecurityGroup",
+         "Properties" : {
+            "GroupDescription" : "Bastion instance",
+            "VpcId" : {"Ref" : "DemoVPC"},
+            "SecurityGroupIngress" : [{
+                  "IpProtocol" : "tcp",
+                  "FromPort" : "22",
+                  "ToPort" : "22",
+                  "CidrIp" : "0.0.0.0/0"
+               }],
+              "Tags" : [ {"Key" : "Name","Value" : "BastionSecurityGroup"} ]
+         }
+      },
+      "BastionInstance" : {
+        "Type" : "AWS::EC2::Instance",
+        "Properties" : {
+          "ImageId" : { "Fn::FindInMap" : [ "BastionInstance", { "Ref" : "AWS::Region" }, "AMI" ]},
+          "KeyName" : { "Ref" : "AppServerKeyName" },
+          "NetworkInterfaces": [ {
+            "AssociatePublicIpAddress": "true",
+            "DeviceIndex": "0",
+            "GroupSet": [{ "Ref" : "BastionSecurityGroup" }],
+            "SubnetId": { "Ref" : "PublicSubnetA" }
+          } ],
+          "Tags" : [ {"Key" : "Name","Value" : "Bastion"} ]
+        }
+      },
+
+      "AppServerDB" : {
+           "Type" : "AWS::RDS::DBInstance",
+           "Properties" : {
+              "DBName" : { "Ref" : "DatabaseName" },
+              "AllocatedStorage" : { "Ref" : "DBAllocatedStorage" },
+              "DBInstanceClass" : { "Ref" : "DBInstanceClass" },
+              "Engine" : "MySQL",
+              "EngineVersion" : "5.5",
+              "MasterUsername" : { "Ref" : "DatabaseUser" },
+              "MasterUserPassword" : { "Ref" : "DatabasePassword" },
+              "Tags" : [ { "Key" : "Name", "Value" : "App Server Database" } ]
+           },
+           "DeletionPolicy" : "Snapshot"
+         }
+
+
+
+
+
+
+
+
+
+
+    }
+}
+
