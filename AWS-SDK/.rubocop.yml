@@ -1,0 +1,16 @@
+AllCops:
+  TargetRubyVersion: 2.2
+Metrics/LineLength:
+  Enabled: false
+Style/FileName:
+  Enabled: false
+BlockComments:
+  Enabled: false
+AsciiComments:
+  Enabled: false
+Style/NumericLiterals:
+  Enabled: false
+Metrics/BlockLength:
+  Enabled: false
+Style/RedundantReturn:
+  Enabled: false
