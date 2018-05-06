@@ -2,3 +2,7 @@
 # defaults file for vpc
 vpc_name: "ansible_demo"
 vpc_cidr_block: "128.0.0.0/16"
+public_subnet_1_cidr: "128.0.0.0/24"
+public_subnet_2_cidr:  "128.0.1.0/24"
+private_subnet_1_cidr: "128.0.2.0/24"
+private_subnet_2_cidr: "128.0.3.0/24"

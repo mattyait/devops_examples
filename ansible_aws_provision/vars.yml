@@ -1,2 +1,3 @@
 AWS_PROFILE: "default"
 aws_region: "us-east-1"
+vpc_name: "ansible_demo"

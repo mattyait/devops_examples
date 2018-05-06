@@ -1,9 +1,78 @@
 ---
-# tasks file for vpc
-- name:               Create VPC
+# Creating a VPC with vpc_name and vpc_cidr_block
+- name: Create VPC
   ec2_vpc_net:
     name:             "{{ vpc_name }}"
     cidr_block:       "{{ vpc_cidr_block }}"
     region:           "{{ aws_region }}"
     state:            "present"
-  register: my_vpc
+  register: vpc
+
+# Getting the fact and storing the value of vpc id
+- name:               Set VPC ID in variable
+  set_fact:
+    vpc_id:           "{{ vpc.vpc.id }}"
+
+# Creating a Public subnet for vpc_id
+- name:               Create Public Subnet for 1a zone
+  ec2_vpc_subnet:
+    state:            "present"
+    vpc_id:           "{{ vpc_id }}"
+    cidr:             "{{ public_subnet_1_cidr }}"
+    az:               "{{ aws_region }}a"
+    region:           "{{ aws_region }}"
+    resource_tags:
+      Name:           "PublicSubnet-1a"
+  register: public_subnet1a
+
+# Getting the public subnet for 1a availability zone id in a variable
+- name:               Set Public Subnet for 1a ID in variable
+  set_fact:
+    public_subnet1a_id: "{{ public_subnet1a.subnet.id }}"
+
+# Create a Internet Gateway in VPC
+- name:               Create Internet Gateway for VPC
+  ec2_vpc_igw:
+    vpc_id:           "{{ vpc_id }}"
+    region:           "{{ aws_region }}"
+    state:            "present"
+    resource_tags:
+      Name:           "Internet Gateway"
+  register: vpc_internet_gateway
+
+# Storing the Internet Gateway Id in variable
+- name:
+  set_fact:
+    internet_gateway_id: "{{ vpc_internet_gateway.gateway_id}}"
+
+# Setting the the public Subnet Route Table.
+# It should be connected to Internet gateway
+- name:               Set up public subnet route table
+  ec2_vpc_route_table:
+    vpc_id:           "{{ vpc_id }}"
+    region:           "{{ aws_region }}"
+    tags:
+      Name:           "Public RouteTable"
+    subnets:
+      - "{{ public_subnet1a_id }}"
+    routes:
+      - dest:         "0.0.0.0/0"
+        gateway_id:   "{{ internet_gateway_id }}"
+
+#============ Private Subnet Creation======
+# Creating a Private subnet for vpc_id
+- name:               Create Private Subnet for 1a zone
+  ec2_vpc_subnet:
+    state:            "present"
+    vpc_id:           "{{ vpc_id }}"
+    cidr:             "{{ private_subnet_1_cidr }}"
+    az:               "{{ aws_region }}a"
+    region:           "{{ aws_region }}"
+    resource_tags:
+      Name:           "PrivateSubnet-1a"
+  register: private_subnet1a
+
+# Getting the Private subnet id in a variable
+- name:               Set Private Subnet for 1a ID in variable
+  set_fact:
+    private_subnet1a_id: "{{ private_subnet1a.subnet.id }}"
