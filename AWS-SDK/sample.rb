@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 require_relative 'lib/classes/amazon_s3'
 require_relative 'lib/classes/amazon_kms'
-
+require_relative 'lib/classes/amazon_cloudtrail'
 aws_profile="default"
 aws_region="ap-southeast-2"
 
@@ -37,5 +37,47 @@ kms_config={
     },
   ],
 }
+
+
 kms=AmazonKms.new(aws_profile,aws_region)
-kms.create_kms_key(kms_config,"demo")
+kmsmetadata_resp=kms.create_kms_key(kms_config,"demo-#{uuid.generate}")
+
+kmskey_policy={
+  "Sid": "Allow CloudTrail to encrypt logs",
+  "Effect": "Allow",
+  "Principal": {
+    "Service": "cloudtrail.amazonaws.com"
+  },
+  "Action": "kms:GenerateDataKey*",
+  "Resource": "*",
+  "Condition": {
+    "StringLike": {
+      "kms:EncryptionContext:aws:cloudtrail:arn": [
+        "arn:aws:cloudtrail:*:#{kmsmetadata_resp.aws_account_id}:trail/*"
+      ]
+    }
+  }
+}.to_json
+
+puts kmskey_policy
+
+kms.attach_policy(kmskey_policy,kmsmetadata_resp.key_id,"kms_policy_cloudtrail")
+
+#========Creating a Cloudtrail and enable it for security====
+cloudtrail_config={
+  name: "demo-#{uuid.generate}", # required
+  s3_bucket_name: "#{bucket_name}",
+  include_global_service_events: true,
+  is_multi_region_trail: true,
+  enable_log_file_validation: true,
+  kms_key_id: "#{kmsmetadata_resp.key_id}",
+  is_organization_trail: true,
+  tags_list: [
+    {
+      key: "Purpose", # required
+      value: "Cloudtrail",
+    },
+  ],
+}
+ct=AmazonCloudtrail.new(aws_profile,aws_region)
+ct.create_cloudtrail(cloudtrail_config)
