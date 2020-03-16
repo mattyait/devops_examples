@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Conditions:
+  LogGroupNameIsDefined:
+    Fn::Not:
+    - Fn::Equals:
+      - ''
+      - {Ref: LogGroupName}
+  RetentionInDaysIsDefined:
+    Fn::Not:
+    - Fn::Equals:
+      - ''
+      - {Ref: RetentionInDays}
+Description: CloudWatch log group
+Outputs:
+  LogGroupARN:
+    Export:
+      Name: {'Fn::Sub': '${AWS::StackName}::LogGroupARN'}
+    Value:
+      Fn::GetAtt: [LogGroup, Arn]
+  LogGroupName:
+    Export:
+      Name: {'Fn::Sub': '${AWS::StackName}::LogGroupName'}
+    Value: {Ref: LogGroup}
+Parameters:
+  LogGroupName: {Default: '', Description: CloudWatch Logs log group name, Type: String}
+  RetentionInDays: {Default: '', Description: The number of days log events are kept
+      in CloudWatch Logs, Type: String}
+Resources:
+  LogGroup:
+    Properties:
+      LogGroupName:
+        Fn::If:
+        - LogGroupNameIsDefined
+        - {Ref: LogGroupName}
+        - {Ref: 'AWS::NoValue'}
+      RetentionInDays:
+        Fn::If:
+        - RetentionInDaysIsDefined
+        - {Ref: RetentionInDays}
+        - {Ref: 'AWS::NoValue'}
+    Type: AWS::Logs::LogGroup

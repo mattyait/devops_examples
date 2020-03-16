@@ -1,0 +1,20 @@
+#=====Playbook for Creating a Directory and a File by using a template
+- name: Local Playbook
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  vars_files:
+    - ../inventories/env/settings.yml
+
+  tasks:
+
+  - name: Create {{ file_destination }} location if not present
+    file:
+      path: "{{ file_destination }}"
+      state: directory
+
+
+  - name: Creating a file from Template
+    template:
+      src: ../templates/example.yml.j2
+      dest: "{{ file_destination }}/{{ file_name }}"
